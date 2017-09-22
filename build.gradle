@@ -1,0 +1,60 @@
+buildscript {
+    ext.kotlin_version = '1.1.4-3'
+
+    repositories {
+        jcenter()
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath 'com.moowork.gradle:gradle-node-plugin:1.2.0'
+    }
+}
+
+repositories {
+    jcenter()
+}
+apply plugin: 'kotlin2js'
+apply plugin: 'com.moowork.node'
+
+dependencies {
+    testCompile "org.jetbrains.kotlin:kotlin-test-js:$kotlin_version"
+    compile "org.jetbrains.kotlin:kotlin-stdlib-js:$kotlin_version"
+}
+
+compileKotlin2Js {
+    kotlinOptions {
+        metaInfo = true
+        outputFile = "${project.buildDir.path}/classes/main/${project.name}.js"
+        sourceMap = true
+        sourceMapEmbedSources = "always"
+        moduleKind = 'umd'
+    }
+}
+compileTestKotlin2Js { kotlinOptions.moduleKind = 'umd' }
+
+task populateNodeModules(type: Copy, dependsOn: compileTestKotlin2Js) {
+
+    from compileKotlin2Js.destinationDir
+
+    configurations.testCompile.each {
+        from zipTree(it.absolutePath).matching { include '*.js' }
+    }
+
+    into "${buildDir}/node_modules"
+}
+
+node {
+    download = true
+}
+
+task yarnInstall(type: YarnTask) {
+    args = ['install']
+}
+
+task runKarma(type: YarnTask, dependsOn: [populateNodeModules, yarnInstall]) {
+    args = ['test']
+}
+
+test.dependsOn runKarma
